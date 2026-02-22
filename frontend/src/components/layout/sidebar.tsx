@@ -56,7 +56,7 @@ export function Sidebar() {
             {/* Logo */}
             <div className="flex items-center gap-2 px-4 py-4 border-b">
                 <TreePine className="h-6 w-6 text-primary shrink-0" />
-                {!collapsed && <span className="font-bold text-lg">Gia phả họ Lê</span>}
+                {!collapsed && <span className="font-bold text-lg">Gia phả họ Hoàng</span>}
             </div>
 
             {/* Navigation */}
@@ -119,7 +119,7 @@ export function Sidebar() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                         Để thiết lập <span className="font-semibold text-foreground">gia phả điện tử</span> riêng cho dòng họ, truy cập được từ bất kì đâu, vui lòng liên hệ
                         <br />
-                        <span className="font-semibold text-foreground">📞 088 999 1120</span>
+                        <span className="font-semibold text-foreground">📞 0763 600 666</span>
                         <br />
                         <span className="text-[10px] opacity-70">để nhận báo giá.</span>
                     </p>
