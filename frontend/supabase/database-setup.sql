@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- Auto-create profile on signup
--- ⚠️ ĐỔI EMAIL ADMIN: thay 'your-admin@example.com' bằng email admin thật
+-- ⚠️ ĐỔI EMAIL ADMIN: thay 'linh.xcom@gmail.com' bằng email admin thật
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -102,7 +102,7 @@ BEGIN
         VALUES (
             NEW.id,
             user_email,
-            CASE WHEN user_email = 'your-admin@example.com' THEN 'admin' ELSE 'viewer' END
+            CASE WHEN user_email = 'linh.xcom@gmail.com' THEN 'admin' ELSE 'viewer' END
         )
         ON CONFLICT (email) DO UPDATE SET id = NEW.id;
     END IF;
