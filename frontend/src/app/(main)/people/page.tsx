@@ -39,7 +39,7 @@ export default function PeopleListPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newName, setNewName] = useState('');
     const [newGender, setNewGender] = useState(1);
-    const [newGeneration, setNewGeneration] = useState(1);
+    const [newGeneration, setNewGeneration] = useState<string | number>('1');
     const [newIsLiving, setNewIsLiving] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -76,19 +76,21 @@ export default function PeopleListPage() {
         setIsSubmitting(true);
         try {
             const { supabase } = await import('@/lib/supabase');
-            const newHandle = 'P' + Date.now(); // Tạo mã ID ngẫu nhiên dựa trên thời gian
+            const newHandle = 'P' + Date.now();
+            const genNumber = parseInt(newGeneration as string) || 1;
+            
             const { error } = await supabase.from('people').insert([{
                 handle: newHandle,
                 display_name: newName.trim(),
                 gender: newGender,
-                generation: newGeneration,
+                generation: genNumber,
                 is_living: newIsLiving,
                 is_patrilineal: true
             }]);
 
             if (error) throw error;
 
-            // Cập nhật danh sách hiển thị ngay lập tức
+            // Cập nhật danh sách hiển thị
             setPeople(prev => [...prev, {
                 handle: newHandle,
                 displayName: newName.trim(),
@@ -99,7 +101,7 @@ export default function PeopleListPage() {
 
             setIsModalOpen(false);
             setNewName('');
-            setNewGeneration(1);
+            setNewGeneration('1');
         } catch (err: any) {
             alert('Có lỗi xảy ra: ' + err.message);
         } finally {
@@ -232,7 +234,7 @@ export default function PeopleListPage() {
                                     type="number" 
                                     min="1" 
                                     value={newGeneration} 
-                                    onChange={e => setNewGeneration(parseInt(e.target.value) || 1)} 
+                                    onChange={e => setNewGeneration(e.target.value)} 
                                 />
                             </div>
                             <div>
