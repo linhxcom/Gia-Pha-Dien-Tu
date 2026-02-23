@@ -182,6 +182,8 @@ export async function updatePerson(
         birthYear?: number | null;
         deathYear?: number | null;
         isLiving?: boolean;
+        isPatrilineal?: boolean;
+        is_patrilineal?: boolean;
         phone?: string | null;
         email?: string | null;
         currentAddress?: string | null;
@@ -197,6 +199,11 @@ export async function updatePerson(
     if (fields.birthYear !== undefined) dbFields.birth_year = fields.birthYear;
     if (fields.deathYear !== undefined) dbFields.death_year = fields.deathYear;
     if (fields.isLiving !== undefined) dbFields.is_living = fields.isLiving;
+    
+    // Xử lý lưu Chính tộc/Ngoại tộc
+    if (fields.isPatrilineal !== undefined) dbFields.is_patrilineal = fields.isPatrilineal;
+    else if (fields.is_patrilineal !== undefined) dbFields.is_patrilineal = fields.is_patrilineal;
+
     if (fields.phone !== undefined) dbFields.phone = fields.phone;
     if (fields.email !== undefined) dbFields.email = fields.email;
     if (fields.currentAddress !== undefined) dbFields.current_address = fields.currentAddress;
@@ -204,6 +211,7 @@ export async function updatePerson(
     if (fields.occupation !== undefined) dbFields.occupation = fields.occupation;
     if (fields.education !== undefined) dbFields.education = fields.education;
     if (fields.notes !== undefined) dbFields.notes = fields.notes;
+    
     dbFields.updated_at = new Date().toISOString();
 
     const { error } = await supabase
