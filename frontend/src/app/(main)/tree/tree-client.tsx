@@ -1575,7 +1575,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         )
         : allPotentialParents.slice(0, 50);
 
-  // Tính toán dữ liệu Vợ/Chồng
     const spouseFamilies = person ? treeData.families.filter(f => f.fatherHandle === person.handle || f.motherHandle === person.handle) : [];
     const currentSpouses = person ? spouseFamilies.map(f => {
         const spHandle = f.fatherHandle === person.handle ? f.motherHandle : f.fatherHandle;
@@ -1586,7 +1585,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     const filteredSpouses = spouseSearch.trim()
         ? allPotentialSpouses.filter(p => p.displayName.toLowerCase().includes(spouseSearch.toLowerCase()))
         : allPotentialSpouses.slice(0, 50);
-
 
     const handleSave = async () => {
         if (!person || !dirty) return;
@@ -1651,7 +1649,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mt-2">
                             <span className="text-xs text-muted-foreground">Trạng thái:</span>
                             <button
                                 className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${person.isLiving
@@ -1664,9 +1662,28 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             </button>
                         </div>
 
+                        {/* NÚT CHUYỂN ĐỔI CHÍNH TỘC / NGOẠI TỘC */}
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-muted-foreground">Vai vế:</span>
+                            <button
+                                className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${person.isPatrilineal
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    : 'bg-stone-100 text-stone-600 border border-stone-200 hover:bg-stone-200'
+                                    }`}
+                                onClick={() => {
+                                    onUpdatePerson(person.handle, { 
+                                        isPatrilineal: !person.isPatrilineal, 
+                                        is_patrilineal: !person.isPatrilineal 
+                                    });
+                                }}
+                            >
+                                {person.isPatrilineal ? '● Chính tộc' : '○ Ngoại tộc (Dâu/rể)'}
+                            </button>
+                        </div>
+
                         {dirty && (
                             <button
-                                className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                                className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors mt-2"
                                 onClick={handleSave} disabled={saving}
                             >
                                 <Save className="h-3.5 w-3.5" />{saving ? 'Đang lưu...' : 'Lưu thay đổi → Supabase'}
@@ -1674,7 +1691,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                         )}
                     </div>
 
-                    {/* Vợ / Chồng */}
                     <div className="p-3 border-b" ref={spouseSearchRef}>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                             Vợ / Chồng
