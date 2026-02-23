@@ -1575,12 +1575,12 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         )
         : allPotentialParents.slice(0, 50);
 
-    // Tính toán dữ liệu Vợ/Chồng
+  // Tính toán dữ liệu Vợ/Chồng
     const spouseFamilies = person ? treeData.families.filter(f => f.fatherHandle === person.handle || f.motherHandle === person.handle) : [];
-    const currentSpouses = spouseFamilies.map(f => {
+    const currentSpouses = person ? spouseFamilies.map(f => {
         const spHandle = f.fatherHandle === person.handle ? f.motherHandle : f.fatherHandle;
         return spHandle ? treeData.people.find(p => p.handle === spHandle) : null;
-    }).filter(Boolean) as TreeNode[];
+    }).filter(Boolean) as TreeNode[] : [];
 
     const allPotentialSpouses = treeData.people.filter(p => p.handle !== person?.handle && !currentSpouses.some(s => s.handle === p.handle));
     const filteredSpouses = spouseSearch.trim()
