@@ -706,7 +706,6 @@ export default function TreeViewPage() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)]">
-            {/* Header: Đã tối ưu cho Mobile (cuộn ngang) */}
             <div className="flex items-center justify-between gap-2 px-1 pb-2 flex-wrap sm:flex-nowrap">
                 <div className="flex-shrink-0 w-full sm:w-auto">
                     <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
@@ -722,9 +721,7 @@ export default function TreeViewPage() {
                         )}
                     </p>
                 </div>
-                {/* Khu vực nút bấm có thể trượt ngang trên mobile */}
                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 w-full sm:w-auto sm:overflow-visible sm:pb-0">
-                    {/* View modes */}
                     <div className="flex rounded-lg border overflow-hidden text-xs flex-shrink-0">
                         {([['full', 'Toàn cảnh', Eye], ['ancestor', 'Tổ tiên', Users], ['descendant', 'Hậu duệ', GitBranch]] as const).map(([mode, label, Icon]) => (
                             <button key={mode} onClick={() => changeViewMode(mode)}
@@ -733,7 +730,6 @@ export default function TreeViewPage() {
                             </button>
                         ))}
                     </div>
-                    {/* Search */}
                     <div className="relative flex-shrink-0">
                         <div className="relative w-36 sm:w-44">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -761,7 +757,6 @@ export default function TreeViewPage() {
                             </Card>
                         )}
                     </div>
-                    {/* Controls */}
                     <div className="flex gap-0.5 flex-shrink-0">
                         <Button variant="outline" size="icon" className="h-8 w-8 hidden sm:flex" title="Thu gọn tất cả" onClick={collapseAll}><ChevronsDownUp className="h-3.5 w-3.5" /></Button>
                         <Button variant="outline" size="icon" className="h-8 w-8 hidden sm:flex" title="Mở rộng tất cả" onClick={expandAll}><ChevronsUpDown className="h-3.5 w-3.5" /></Button>
@@ -795,7 +790,6 @@ export default function TreeViewPage() {
                 </div>
             </div>
 
-            {/* Tree viewport + Editor panel row */}
             <div className="flex-1 flex gap-0 min-h-0 relative">
                 <div ref={viewportRef}
                     className="flex-1 relative overflow-hidden rounded-xl border-2 bg-gradient-to-br from-background to-muted/30 cursor-grab active:cursor-grabbing select-none"
@@ -913,7 +907,6 @@ export default function TreeViewPage() {
                     )}
                 </div>
 
-                {/* Editor Sidebar Panel */}
                 {editorMode && (
                     <EditorPanel
                         selectedCard={selectedCard}
@@ -1023,6 +1016,40 @@ export default function TreeViewPage() {
                                 alert("Lỗi cập nhật CSDL: " + err.message);
                             }
                         }}
+                        onAssignSpouse={async (personHandle, spouseHandle) => {
+                            const { supabase } = await import('@/lib/supabase');
+                            const p1 = treeData?.people.find(p => p.handle === personHandle);
+                            const p2 = treeData?.people.find(p => p.handle === spouseHandle);
+                            if (!p1 || !p2 || !treeData) return;
+
+                            const isP1Male = p1.gender === 1;
+                            const fatherHandle = isP1Male ? p1.handle : p2.handle;
+                            const motherHandle = isP1Male ? p2.handle : p1.handle;
+
+                            let existingFamily = treeData.families.find(f => f.fatherHandle === fatherHandle && f.motherHandle === motherHandle);
+                            if (existingFamily) return;
+
+                            let famToUpdate = treeData.families.find(f => (f.fatherHandle === p1.handle && !f.motherHandle) || (f.motherHandle === p1.handle && !f.fatherHandle));
+                            if (!famToUpdate) famToUpdate = treeData.families.find(f => (f.fatherHandle === p2.handle && !f.motherHandle) || (f.motherHandle === p2.handle && !f.fatherHandle));
+
+                            try {
+                                if (famToUpdate) {
+                                    await supabase.from('families').update({ father_handle: fatherHandle, mother_handle: motherHandle }).eq('handle', famToUpdate.handle);
+                                    setTreeData(prev => {
+                                        if (!prev) return null;
+                                        return { ...prev, families: prev.families.map(f => f.handle === famToUpdate!.handle ? { ...f, fatherHandle, motherHandle } : f) };
+                                    });
+                                } else {
+                                    const newFamilyHandle = 'F' + Date.now();
+                                    const newFamily = { handle: newFamilyHandle, fatherHandle, motherHandle, children: [] };
+                                    await supabase.from('families').insert([{ handle: newFamilyHandle, father_handle: fatherHandle, mother_handle: motherHandle, children: [] }]);
+                                    setTreeData(prev => {
+                                        if (!prev) return null;
+                                        return { ...prev, families: [...prev.families, newFamily as any] };
+                                    });
+                                }
+                            } catch (err: any) { alert("Lỗi cập nhật CSDL: " + err.message); }
+                        }}
                         onReset={async () => {
                             const data = await fetchTreeData();
                             setTreeData(data);
@@ -1032,7 +1059,6 @@ export default function TreeViewPage() {
                 )}
             </div>
 
-            {/* Legend */}
             <div className="flex gap-3 text-[10px] text-muted-foreground pt-1.5 px-1 flex-wrap">
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-400" /> Nam (chính tộc)</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-pink-100 border border-pink-400" /> Nữ (chính tộc)</span>
@@ -1466,7 +1492,7 @@ function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => voi
     );
 }
 
-function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, onRemoveChild, onToggleLiving, onUpdatePerson, onAssignParent, onReset, onClose }: {
+function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, onRemoveChild, onToggleLiving, onUpdatePerson, onAssignParent, onAssignSpouse, onReset, onClose }: {
     selectedCard: string | null;
     treeData: { people: TreeNode[]; families: TreeFamily[] } | null;
     onReorderChildren: (familyHandle: string, newOrder: string[]) => void;
@@ -1475,6 +1501,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     onToggleLiving: (handle: string, isLiving: boolean) => void;
     onUpdatePerson: (handle: string, fields: Record<string, unknown>) => void;
     onAssignParent: (childHandle: string, parentHandle: string) => void;
+    onAssignSpouse: (personHandle: string, spouseHandle: string) => void;
     onReset: () => void;
     onClose: () => void;
 }) {
@@ -1483,9 +1510,14 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     const [editDeathYear, setEditDeathYear] = useState('');
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
+    
     const [parentSearch, setParentSearch] = useState('');
     const [showParentDropdown, setShowParentDropdown] = useState(false);
     const parentSearchRef = useRef<HTMLDivElement>(null);
+
+    const [spouseSearch, setSpouseSearch] = useState('');
+    const [showSpouseDropdown, setShowSpouseDropdown] = useState(false);
+    const spouseSearchRef = useRef<HTMLDivElement>(null);
 
     if (!treeData) return null;
 
@@ -1500,6 +1532,8 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
             setDirty(false);
             setParentSearch('');
             setShowParentDropdown(false);
+            setSpouseSearch('');
+            setShowSpouseDropdown(false);
         }
     }, [person?.handle]);
 
@@ -1508,6 +1542,9 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         const handleClickOutside = (e: MouseEvent) => {
             if (parentSearchRef.current && !parentSearchRef.current.contains(e.target as Node)) {
                 setShowParentDropdown(false);
+            }
+            if (spouseSearchRef.current && !spouseSearchRef.current.contains(e.target as Node)) {
+                setShowSpouseDropdown(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -1537,6 +1574,19 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
             p.handle.toLowerCase().includes(parentSearch.toLowerCase())
         )
         : allPotentialParents.slice(0, 50);
+
+    // Tính toán dữ liệu Vợ/Chồng
+    const spouseFamilies = person ? treeData.families.filter(f => f.fatherHandle === person.handle || f.motherHandle === person.handle) : [];
+    const currentSpouses = spouseFamilies.map(f => {
+        const spHandle = f.fatherHandle === person.handle ? f.motherHandle : f.fatherHandle;
+        return spHandle ? treeData.people.find(p => p.handle === spHandle) : null;
+    }).filter(Boolean) as TreeNode[];
+
+    const allPotentialSpouses = treeData.people.filter(p => p.handle !== person?.handle && !currentSpouses.some(s => s.handle === p.handle));
+    const filteredSpouses = spouseSearch.trim()
+        ? allPotentialSpouses.filter(p => p.displayName.toLowerCase().includes(spouseSearch.toLowerCase()))
+        : allPotentialSpouses.slice(0, 50);
+
 
     const handleSave = async () => {
         if (!person || !dirty) return;
@@ -1622,6 +1672,54 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                                 <Save className="h-3.5 w-3.5" />{saving ? 'Đang lưu...' : 'Lưu thay đổi → Supabase'}
                             </button>
                         )}
+                    </div>
+
+                    {/* Vợ / Chồng */}
+                    <div className="p-3 border-b" ref={spouseSearchRef}>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                            Vợ / Chồng
+                        </p>
+                        {currentSpouses.length > 0 && (
+                            <div className="mb-2 space-y-1">
+                                {currentSpouses.map(sp => (
+                                    <div key={sp.handle} className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded text-xs">
+                                        <span className="text-red-500">❤</span>
+                                        <span className="font-medium text-foreground truncate flex-1">{sp.displayName}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="relative">
+                            <input
+                                type="text"
+                                className="w-full border rounded px-2 py-1 text-xs bg-background placeholder:text-muted-foreground/60"
+                                placeholder="🔍 Tìm người để gắn vợ/chồng..."
+                                value={spouseSearch}
+                                onChange={e => { setSpouseSearch(e.target.value); setShowSpouseDropdown(true); }}
+                                onFocus={() => setShowSpouseDropdown(true)}
+                            />
+                            {showSpouseDropdown && (
+                                <div className="absolute z-50 bottom-full left-0 right-0 mb-1 bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
+                                    {filteredSpouses.length === 0 ? (
+                                        <div className="px-2 py-2 text-xs text-muted-foreground text-center">Không tìm thấy</div>
+                                    ) : (
+                                        filteredSpouses.map(p => (
+                                            <button
+                                                key={p.handle}
+                                                className="w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-1 transition-colors"
+                                                onClick={() => {
+                                                    onAssignSpouse(person.handle, p.handle);
+                                                    setShowSpouseDropdown(false);
+                                                    setSpouseSearch('');
+                                                }}
+                                            >
+                                                <span className="truncate flex-1">{p.displayName}</span>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {parentFamily && children.length > 0 && (
