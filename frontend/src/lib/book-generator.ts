@@ -75,59 +75,69 @@ function formatYears(birth?: number, death?: number, isLiving?: boolean): string
 export function generateBookData(
     people: TreeNode[],
     families: TreeFamily[],
-    familyName: string = 'Lê Huy',
+    familyName: string = 'Hoàng',
 ): BookData {
     const personMap = new Map(people.map(p => [p.handle, p]));
     const familyMap = new Map(families.map(f => [f.handle, f]));
 
-    // ── Step 1: Assign generations via BFS from roots ──
+    // ── Step 1: Assign generations via BFS strictly from valid roots ──
     const generations = new Map<string, number>();
+    
+    // Find all people who are children in ANY family
     const childOfFamily = new Set<string>();
     for (const f of families) {
         for (const ch of f.children) childOfFamily.add(ch);
     }
 
-    // Find root persons (not a child of any family)
-    const roots = people.filter(p => !childOfFamily.has(p.handle));
+    // A valid root MUST be patrilineal AND NOT be a child of anyone.
+    // This prevents spouses (who also aren't children) from becoming generation 0 roots.
+    const roots = people.filter(p => p.isPatrilineal && !childOfFamily.has(p.handle));
 
-    function setGen(handle: string, gen: number) {
-        if (generations.has(handle)) return;
+    // Breadth-First Search (BFS) to guarantee correct generation order
+    const queue: { handle: string; gen: number }[] = roots.map(r => ({ handle: r.handle, gen: 0 }));
+    
+    while (queue.length > 0) {
+        const { handle, gen } = queue.shift()!;
+        if (generations.has(handle)) continue;
+        
         generations.set(handle, gen);
         const person = personMap.get(handle);
-        if (!person) return;
+        if (!person) continue;
+
+        // Traverse all families this person is a parent in
         for (const famId of person.families) {
             const fam = familyMap.get(famId);
             if (!fam) continue;
-            // Spouse gets same generation
-            if (fam.fatherHandle && fam.fatherHandle !== handle) {
-                if (!generations.has(fam.fatherHandle)) generations.set(fam.fatherHandle, gen);
+            
+            // Assign SAME generation to spouse
+            if (fam.fatherHandle && !generations.has(fam.fatherHandle)) {
+                queue.push({ handle: fam.fatherHandle, gen: gen });
             }
-            if (fam.motherHandle && fam.motherHandle !== handle) {
-                if (!generations.has(fam.motherHandle)) generations.set(fam.motherHandle, gen);
+            if (fam.motherHandle && !generations.has(fam.motherHandle)) {
+                queue.push({ handle: fam.motherHandle, gen: gen });
             }
-            // Children get gen+1
-            for (const ch of fam.children) setGen(ch, gen + 1);
+            
+            // Assign NEXT generation to children
+            for (const ch of fam.children) {
+                if (!generations.has(ch)) {
+                    queue.push({ handle: ch, gen: gen + 1 });
+                }
+            }
         }
     }
 
-    for (const r of roots) {
-        setGen(r.handle, 0);
-    }
-    // Catch any unassigned
+    // Catch any completely disconnected people and use their fallback DB generation
     for (const p of people) {
-        if (!generations.has(p.handle)) generations.set(p.handle, 0);
+        if (!generations.has(p.handle)) {
+            // If they have a generation in DB (usually 1-based), use it - 1 to match array index.
+            // Otherwise, default to 0.
+            const fallbackGen = (p as any).generation ? ((p as any).generation - 1) : 0;
+            generations.set(p.handle, fallbackGen);
+        }
     }
 
     // ── Step 2: Build person entries ──
     const bookPersons: BookPerson[] = [];
-
-    // Group by generation
-    const genGroups = new Map<number, TreeNode[]>();
-    for (const p of people) {
-        const gen = generations.get(p.handle) ?? 0;
-        if (!genGroups.has(gen)) genGroups.set(gen, []);
-        genGroups.get(gen)!.push(p);
-    }
 
     // For each patrilineal person, build a BookPerson entry
     for (const p of people) {
@@ -217,7 +227,7 @@ export function generateBookData(
     }
 
     // ── Step 3: Build chapters ──
-    const maxGen = Math.max(...Array.from(generations.values()));
+    const maxGen = Math.max(0, ...Array.from(generations.values()));
     const chapters: BookChapter[] = [];
 
     for (let g = 0; g <= maxGen; g++) {
