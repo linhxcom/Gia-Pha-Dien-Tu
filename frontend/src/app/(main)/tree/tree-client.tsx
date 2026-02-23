@@ -1508,6 +1508,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     const [editName, setEditName] = useState('');
     const [editBirthYear, setEditBirthYear] = useState('');
     const [editDeathYear, setEditDeathYear] = useState('');
+    const [editIsPatrilineal, setEditIsPatrilineal] = useState(true);
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
     
@@ -1529,6 +1530,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
             setEditName(person.displayName || '');
             setEditBirthYear(person.birthYear?.toString() || '');
             setEditDeathYear(person.deathYear?.toString() || '');
+            setEditIsPatrilineal(person.isPatrilineal ?? true);
             setDirty(false);
             setParentSearch('');
             setShowParentDropdown(false);
@@ -1595,6 +1597,13 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         if (newBirth !== (person.birthYear ?? null)) fields.birthYear = newBirth;
         const newDeath = editDeathYear ? parseInt(editDeathYear) : null;
         if (newDeath !== (person.deathYear ?? null)) fields.deathYear = newDeath;
+        
+        // Thêm kiểm tra Vai vế để gửi lên DB
+        if (editIsPatrilineal !== person.isPatrilineal) {
+            fields.isPatrilineal = editIsPatrilineal;
+            fields.is_patrilineal = editIsPatrilineal; 
+        }
+
         if (Object.keys(fields).length > 0) {
             onUpdatePerson(person.handle, fields);
         }
@@ -1662,22 +1671,20 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             </button>
                         </div>
 
-                        {/* NÚT CHUYỂN ĐỔI CHÍNH TỘC / NGOẠI TỘC */}
+                        {/* NÚT CHUYỂN ĐỔI CHÍNH TỘC / NGOẠI TỘC ĐÃ SỬA */}
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-muted-foreground">Vai vế:</span>
                             <button
-                                className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${person.isPatrilineal
+                                className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${editIsPatrilineal
                                     ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                                     : 'bg-stone-100 text-stone-600 border border-stone-200 hover:bg-stone-200'
                                     }`}
                                 onClick={() => {
-                                    onUpdatePerson(person.handle, { 
-                                        isPatrilineal: !person.isPatrilineal, 
-                                        is_patrilineal: !person.isPatrilineal 
-                                    });
+                                    setEditIsPatrilineal(!editIsPatrilineal);
+                                    setDirty(true); // Kích hoạt hiện nút Lưu
                                 }}
                             >
-                                {person.isPatrilineal ? '● Chính tộc' : '○ Ngoại tộc (Dâu/rể)'}
+                                {editIsPatrilineal ? '● Chính tộc' : '○ Ngoại tộc (Dâu/rể)'}
                             </button>
                         </div>
 
