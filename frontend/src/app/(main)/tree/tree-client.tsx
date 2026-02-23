@@ -970,7 +970,6 @@ export default function TreeViewPage() {
                             if(!newParent || !treeData) return;
                             const isMale = newParent.gender === 1;
 
-                            // Tìm gia đình đích hoặc tạo mới
                             let targetFamily = treeData.families.find(f =>
                                 (isMale ? f.fatherHandle === parentHandle : f.motherHandle === parentHandle)
                             );
@@ -986,23 +985,24 @@ export default function TreeViewPage() {
                                     }
                                 } else {
                                     const newFamilyHandle = 'F' + Date.now();
-                                    targetFamily = {
+                                    const newFamily = {
                                         handle: newFamilyHandle,
                                         fatherHandle: isMale ? parentHandle : undefined,
                                         motherHandle: !isMale ? parentHandle : undefined,
                                         children: [childHandle],
-                                    } as any;
+                                    };
+                                    targetFamily = newFamily as any;
                                     await supabase.from('families').insert([{
-                                        handle: targetFamily.handle,
-                                        father_handle: targetFamily.fatherHandle || null,
-                                        mother_handle: targetFamily.motherHandle || null,
-                                        children: targetFamily.children
+                                        handle: newFamily.handle,
+                                        father_handle: newFamily.fatherHandle || null,
+                                        mother_handle: newFamily.motherHandle || null,
+                                        children: newFamily.children
                                     }]);
                                     if (oldFamily) {
                                         await supabase.from('families').update({ children: oldFamily.children.filter(c => c !== childHandle) }).eq('handle', oldFamily.handle);
                                     }
                                 }
-                                // Cập nhật state
+                                
                                 setTreeData(prev => {
                                     if (!prev) return null;
                                     let nextFamilies = prev.families.map(f => {
@@ -1014,7 +1014,7 @@ export default function TreeViewPage() {
                                         }
                                         return f;
                                     });
-                                    if (!prev.families.some(f => f.handle === targetFamily!.handle)) {
+                                    if (targetFamily && !prev.families.some(f => f.handle === targetFamily!.handle)) {
                                         nextFamilies.push(targetFamily as any);
                                     }
                                     return { ...prev, families: nextFamilies };
