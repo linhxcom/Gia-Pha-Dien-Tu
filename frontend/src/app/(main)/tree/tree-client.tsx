@@ -70,13 +70,11 @@ function computeBranchSummary(
         }
     }
 
-    // Walk from this person's children (not including the person itself)
     const person = personMap.get(handle);
     if (person) {
         for (const fId of person.families) {
             const fam = familyMap.get(fId);
             if (!fam) continue;
-            // Also count spouse
             if (fam.motherHandle && fam.motherHandle !== handle && !visited.has(fam.motherHandle)) {
                 const spouse = personMap.get(fam.motherHandle);
                 if (spouse) { visited.add(fam.motherHandle); if (spouse.isLiving) livingCount++; else deceasedCount++; }
@@ -133,10 +131,8 @@ function computeTreeStats(nodes: PositionedNode[], families: TreeFamily[]): Tree
     };
 }
 
-// Default depth at which branches auto-collapse in panoramic view (0-indexed: gen 3 = Đời 4)
 const AUTO_COLLAPSE_GEN = 8;
 
-// Compute generations via BFS from root persons (persons not in any family as children)
 function computePersonGenerations(people: TreeNode[], families: TreeFamily[]): Map<string, number> {
     const childOf = new Set<string>();
     for (const f of families) for (const ch of f.children) childOf.add(ch);
@@ -153,7 +149,6 @@ function computePersonGenerations(people: TreeNode[], families: TreeFamily[]): M
         for (const fId of person.families) {
             const fam = familyMap.get(fId);
             if (!fam) continue;
-            // Spouse at same gen
             if (fam.fatherHandle && !gens.has(fam.fatherHandle)) gens.set(fam.fatherHandle, gen);
             if (fam.motherHandle && !gens.has(fam.motherHandle)) gens.set(fam.motherHandle, gen);
             for (const ch of fam.children) {
@@ -182,17 +177,13 @@ export default function TreeViewPage() {
     const [contributePerson, setContributePerson] = useState<{ handle: string; name: string } | null>(null);
     const [linkCopied, setLinkCopied] = useState(false);
 
-    // F4: Collapsible branches
     const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set());
-    // F3: Stats panel user-hidden
     const [statsHidden, setStatsHidden] = useState(false);
 
-    // Editor mode state
     const [editorMode, setEditorMode] = useState(false);
     const [selectedCard, setSelectedCard] = useState<string | null>(null);
     const { isAdmin } = useAuth();
 
-    // URL query param initialization + auto-collapse on initial load
     const urlInitialized = useRef(false);
     useEffect(() => {
         if (urlInitialized.current || !treeData) return;
@@ -205,9 +196,7 @@ export default function TreeViewPage() {
         if (personParam && treeData.people.some(p => p.handle === personParam)) {
             setFocusPerson(personParam);
         }
-        // Auto-collapse on initial load
         if (!viewParam || viewParam === 'full') {
-            // Panoramic: collapse by absolute generation
             const gens = computePersonGenerations(treeData.people, treeData.families);
             const toCollapse = new Set<string>();
             for (const f of treeData.families) {
@@ -221,7 +210,6 @@ export default function TreeViewPage() {
             }
             setCollapsedBranches(toCollapse);
         } else if (viewParam === 'descendant' && personParam) {
-            // Descendant: collapse by relative depth from focus person
             const personMap = new Map(treeData.people.map(p => [p.handle, p]));
             const toCollapse = new Set<string>();
             const depthMap = new Map<string, number>();
@@ -251,7 +239,6 @@ export default function TreeViewPage() {
         }
     }, [searchParams, treeData]);
 
-    // Sync URL when view/focus changes
     useEffect(() => {
         if (!urlInitialized.current) return;
         const params = new URLSearchParams();
@@ -261,13 +248,11 @@ export default function TreeViewPage() {
         router.replace(`/tree${qs ? '?' + qs : ''}`, { scroll: false });
     }, [viewMode, focusPerson, router]);
 
-    // Transform state
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
     const [isDragging, setIsDragging] = useState(false);
     const dragRef = useRef({ startX: 0, startY: 0, startTx: 0, startTy: 0 });
     const pinchRef = useRef({ initialDist: 0, initialScale: 1 });
 
-    // Fetch data
     useEffect(() => {
         const fetchTree = async () => {
             try {
@@ -286,7 +271,6 @@ export default function TreeViewPage() {
                     }
                 }
             } catch { /* fallback */ }
-            // Load from Supabase
             try {
                 const data = await fetchTreeData();
                 if (data.people.length > 0) {
@@ -295,14 +279,12 @@ export default function TreeViewPage() {
                     return;
                 }
             } catch { /* fallback to mock */ }
-            // Fallback: use bundled mock data (demo mode)
             setTreeData(getMockTreeData());
             setLoading(false);
         };
         fetchTree();
     }, []);
 
-    // Filtered data for view mode
     const displayData = useMemo(() => {
         if (!treeData) return null;
         if (viewMode === 'full' || !focusPerson) return treeData;
@@ -311,10 +293,8 @@ export default function TreeViewPage() {
         return treeData;
     }, [treeData, viewMode, focusPerson]);
 
-    // F1: Zoom level
     const zoomLevel = useMemo<ZoomLevel>(() => getZoomLevel(transform.scale), [transform.scale]);
 
-    // F4: Get all descendants of collapsed branches
     const getDescendantHandles = useCallback((handle: string): Set<string> => {
         if (!treeData) return new Set();
         const personMap = new Map(treeData.people.map(p => [p.handle, p]));
@@ -326,7 +306,6 @@ export default function TreeViewPage() {
             for (const fId of person.families) {
                 const fam = familyMap.get(fId);
                 if (!fam) continue;
-                // Include spouse
                 if (fam.motherHandle && fam.motherHandle !== h) result.add(fam.motherHandle);
                 if (fam.fatherHandle && fam.fatherHandle !== h) result.add(fam.fatherHandle);
                 for (const ch of fam.children) {
@@ -339,7 +318,6 @@ export default function TreeViewPage() {
         return result;
     }, [treeData]);
 
-    // F4: Compute all hidden handles from collapsed branches
     const hiddenHandles = useMemo(() => {
         if (!treeData) return new Set<string>();
         const hidden = new Set<string>();
@@ -347,8 +325,6 @@ export default function TreeViewPage() {
             const descendants = getDescendantHandles(h);
             for (const d of descendants) hidden.add(d);
         }
-        // Cascade: hide people whose ALL parent families have hidden fathers
-        // This catches nodes that leaked through (e.g., gen 13 whose gen 12 parents are hidden)
         const familyMap = new Map(treeData.families.map(f => [f.handle, f]));
         let changed = true;
         while (changed) {
@@ -356,10 +332,9 @@ export default function TreeViewPage() {
             for (const p of treeData.people) {
                 if (hidden.has(p.handle)) continue;
                 if (p.parentFamilies.length === 0) continue;
-                // Check if ALL parent families have their father/mother hidden
                 const allParentsHidden = p.parentFamilies.every(pfId => {
                     const pf = familyMap.get(pfId);
-                    if (!pf) return true; // orphan family = treat as hidden
+                    if (!pf) return true; 
                     const fatherHidden = pf.fatherHandle ? hidden.has(pf.fatherHandle) : true;
                     const motherHidden = pf.motherHandle ? hidden.has(pf.motherHandle) : true;
                     return fatherHidden && motherHidden;
@@ -373,7 +348,6 @@ export default function TreeViewPage() {
         return hidden;
     }, [collapsedBranches, getDescendantHandles, treeData]);
 
-    // F4: Branch summaries for collapsed branches
     const branchSummaries = useMemo(() => {
         if (!treeData) return new Map<string, BranchSummary>();
         const map = new Map<string, BranchSummary>();
@@ -383,14 +357,11 @@ export default function TreeViewPage() {
         return map;
     }, [collapsedBranches, treeData]);
 
-    // F4: Toggle collapse — reveals one level at a time when expanding
     const toggleCollapse = useCallback((handle: string) => {
         if (!treeData) return;
         setCollapsedBranches(prev => {
             const next = new Set(prev);
             if (next.has(handle)) {
-                // Expanding: remove this person's collapse, but auto-collapse their
-                // direct children who have descendants (progressive reveal)
                 next.delete(handle);
                 const person = treeData.people.find(p => p.handle === handle);
                 if (person) {
@@ -398,7 +369,6 @@ export default function TreeViewPage() {
                         const fam = treeData.families.find(f => f.handle === fId);
                         if (!fam) continue;
                         for (const ch of fam.children) {
-                            // Check if child has their own children
                             const childPerson = treeData.people.find(p => p.handle === ch);
                             if (childPerson) {
                                 const childHasChildren = childPerson.families.some(cfId => {
@@ -419,7 +389,6 @@ export default function TreeViewPage() {
         });
     }, [treeData]);
 
-    // Expand All / Collapse All
     const expandAll = useCallback(() => {
         setCollapsedBranches(new Set());
     }, []);
@@ -436,7 +405,6 @@ export default function TreeViewPage() {
         setCollapsedBranches(allParents);
     }, [treeData]);
 
-    // Auto-collapse for Toàn cảnh view
     const autoCollapseForPanoramic = useCallback(() => {
         if (!treeData) return;
         const gens = computePersonGenerations(treeData.people, treeData.families);
@@ -453,12 +421,10 @@ export default function TreeViewPage() {
         setCollapsedBranches(toCollapse);
     }, [treeData]);
 
-    // Auto-collapse for Hậu duệ view: collapse branches beyond AUTO_COLLAPSE_GEN relative depth from focus
     const autoCollapseForDescendant = useCallback((person: string) => {
         if (!treeData) return;
         const personMap = new Map(treeData.people.map(p => [p.handle, p]));
         const toCollapse = new Set<string>();
-        // BFS from person to compute relative depth
         const depthMap = new Map<string, number>();
         const queue: string[] = [person];
         depthMap.set(person, 0);
@@ -485,16 +451,13 @@ export default function TreeViewPage() {
         setCollapsedBranches(toCollapse);
     }, [treeData]);
 
-    // Compute layout — filter out hidden nodes from collapsed branches
     const layout = useMemo<LayoutResult | null>(() => {
         if (!displayData) return null;
         const d = 'filteredPeople' in displayData
             ? { people: (displayData as any).filteredPeople, families: (displayData as any).filteredFamilies }
             : displayData;
-        // F4: Filter out hidden handles
         const visiblePeople = d.people.filter((p: TreeNode) => !hiddenHandles.has(p.handle));
         const visibleFamilies = d.families.filter((f: TreeFamily) => {
-            // Keep family only if NOT all parents are hidden
             const fatherHidden = f.fatherHandle ? hiddenHandles.has(f.fatherHandle) : true;
             const motherHidden = f.motherHandle ? hiddenHandles.has(f.motherHandle) : true;
             return !(fatherHidden && motherHidden);
@@ -502,7 +465,6 @@ export default function TreeViewPage() {
         return computeLayout(visiblePeople, visibleFamilies);
     }, [displayData, hiddenHandles]);
 
-    // F4: Check if a person has children (for showing toggle button)
     const hasChildren = useCallback((handle: string): boolean => {
         if (!treeData) return false;
         return treeData.families.some(f =>
@@ -510,13 +472,11 @@ export default function TreeViewPage() {
         );
     }, [treeData]);
 
-    // F3: Stats computed from full layout
     const treeStats = useMemo<TreeStats | null>(() => {
         if (!layout || !treeData) return null;
         return computeTreeStats(layout.nodes, treeData.families);
     }, [layout, treeData]);
 
-    // F2: Generation stats for headers
     const generationStats = useMemo(() => {
         if (!layout) return new Map<number, number>();
         const map = new Map<number, number>();
@@ -527,15 +487,13 @@ export default function TreeViewPage() {
         return map;
     }, [layout]);
 
-    // ═══ Viewport culling: only render visible nodes ═══
-    const CULL_PAD = 300; // px padding around viewport
+    const CULL_PAD = 300; 
 
     const visibleNodes = useMemo(() => {
         if (!layout || !viewportRef.current) return layout?.nodes ?? [];
         const vw = viewportRef.current.clientWidth;
         const vh = viewportRef.current.clientHeight;
         const { x: tx, y: ty, scale } = transform;
-        // Convert viewport rect to tree-space coordinates
         const left = (-tx / scale) - CULL_PAD;
         const top = (-ty / scale) - CULL_PAD;
         const right = ((vw - tx) / scale) + CULL_PAD;
@@ -548,15 +506,12 @@ export default function TreeViewPage() {
 
     const visibleHandles = useMemo(() => new Set(visibleNodes.map(n => n.node.handle)), [visibleNodes]);
 
-    // Batched SVG paths for connections
     const { parentPaths, couplePaths, visibleCouples } = useMemo(() => {
         if (!layout) return { parentPaths: '', couplePaths: '', visibleCouples: [] as PositionedCouple[] };
         let pp = '';
         let cp = '';
         const vc: PositionedCouple[] = [];
-        // Only render connections where at least one endpoint is visible
         for (const c of layout.connections) {
-            // Check if any endpoint is near visible area
             const vw = viewportRef.current?.clientWidth ?? 1200;
             const vh = viewportRef.current?.clientHeight ?? 900;
             const { x: tx, y: ty, scale } = transform;
@@ -571,12 +526,9 @@ export default function TreeViewPage() {
             if (c.type === 'couple') {
                 cp += `M${c.fromX},${c.fromY}L${c.toX},${c.toY}`;
             } else {
-                // Each connection segment is already a single straight line
-                // (either horizontal or vertical) from the layout engine
                 pp += `M${c.fromX},${c.fromY}L${c.toX},${c.toY}`;
             }
         }
-        // Visible couples for hearts
         for (const c of layout.couples) {
             if (visibleHandles.has(c.fatherPos?.node.handle ?? '') || visibleHandles.has(c.motherPos?.node.handle ?? '')) {
                 vc.push(c);
@@ -585,7 +537,6 @@ export default function TreeViewPage() {
         return { parentPaths: pp, couplePaths: cp, visibleCouples: vc };
     }, [layout, transform, visibleHandles]);
 
-    // Stable callbacks for PersonCard
     const handleCardHover = useCallback((h: string | null) => setHoveredHandle(h), []);
     const handleCardClick = useCallback((handle: string, x: number, y: number) => {
         if (editorMode) {
@@ -598,14 +549,12 @@ export default function TreeViewPage() {
         setFocusPerson(handle);
     }, []);
 
-    // Search highlight
     useEffect(() => {
         if (!searchQuery || !treeData) { setHighlightHandles(new Set()); return; }
         const q = searchQuery.toLowerCase();
         setHighlightHandles(new Set(treeData.people.filter(p => p.displayName.toLowerCase().includes(q)).map(p => p.handle)));
     }, [searchQuery, treeData]);
 
-    // Fit all
     const fitAll = useCallback(() => {
         if (!layout || !viewportRef.current) return;
         const vw = viewportRef.current.clientWidth;
@@ -621,12 +570,10 @@ export default function TreeViewPage() {
         });
     }, [layout]);
 
-    // Auto-fit on first load
     useEffect(() => {
         if (layout && !loading) setTimeout(fitAll, 50);
     }, [layout, loading]); // eslint-disable-line
 
-    // === Mouse handlers ===
     const handleMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return;
         setIsDragging(true);
@@ -640,7 +587,6 @@ export default function TreeViewPage() {
     };
     const handleMouseUp = () => setIsDragging(false);
 
-    // === Scroll-wheel zoom ===
     useEffect(() => {
         const el = viewportRef.current;
         if (!el) return;
@@ -660,7 +606,6 @@ export default function TreeViewPage() {
         return () => el.removeEventListener('wheel', onWheel);
     }, []);
 
-    // === Touch handlers ===
     useEffect(() => {
         const el = viewportRef.current;
         if (!el) return;
@@ -718,7 +663,6 @@ export default function TreeViewPage() {
         };
     }, [transform.x, transform.y, transform.scale]);
 
-    // Pan to person
     const panToPerson = useCallback((handle: string) => {
         if (!layout || !viewportRef.current) return;
         const node = layout.nodes.find(n => n.node.handle === handle);
@@ -733,11 +677,9 @@ export default function TreeViewPage() {
         setFocusPerson(handle);
     }, [layout]);
 
-    // View mode
     const changeViewMode = (mode: ViewMode) => {
         if (mode !== 'full' && !focusPerson && treeData?.people[0]) setFocusPerson(treeData.people[0].handle);
         setViewMode(mode);
-        // Auto-collapse based on view mode
         if (mode === 'full') {
             autoCollapseForPanoramic();
         } else if (mode === 'descendant') {
@@ -748,7 +690,6 @@ export default function TreeViewPage() {
         }
     };
 
-    // Copy shareable link
     const copyTreeLink = useCallback((handle: string) => {
         const url = `${window.location.origin}/tree?view=descendant&person=${handle}`;
         navigator.clipboard.writeText(url).then(() => {
@@ -757,20 +698,17 @@ export default function TreeViewPage() {
         });
     }, []);
 
-    // Search results
     const searchResults = useMemo(() => {
         if (!searchQuery || !treeData) return [];
         const q = searchQuery.toLowerCase();
         return treeData.people.filter(p => p.displayName.toLowerCase().includes(q)).slice(0, 8);
     }, [searchQuery, treeData]);
 
-    // connPath kept for compatibility but unused with batched rendering
-
     return (
         <div className="flex flex-col h-[calc(100vh-80px)]">
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-2 px-1 pb-2">
-                <div>
+            {/* Header: Đã tối ưu cho Mobile (cuộn ngang) */}
+            <div className="flex items-center justify-between gap-2 px-1 pb-2 flex-wrap sm:flex-nowrap">
+                <div className="flex-shrink-0 w-full sm:w-auto">
                     <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
                         <TreePine className="h-5 w-5" /> Cây gia phả
                     </h1>
@@ -784,19 +722,20 @@ export default function TreeViewPage() {
                         )}
                     </p>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Khu vực nút bấm có thể trượt ngang trên mobile */}
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 w-full sm:w-auto sm:overflow-visible sm:pb-0">
                     {/* View modes */}
-                    <div className="flex rounded-lg border overflow-hidden text-xs">
+                    <div className="flex rounded-lg border overflow-hidden text-xs flex-shrink-0">
                         {([['full', 'Toàn cảnh', Eye], ['ancestor', 'Tổ tiên', Users], ['descendant', 'Hậu duệ', GitBranch]] as const).map(([mode, label, Icon]) => (
                             <button key={mode} onClick={() => changeViewMode(mode)}
                                 className={`px-2.5 py-1.5 font-medium flex items-center gap-1 transition-colors ${mode !== 'full' ? 'border-l' : ''} ${viewMode === mode ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
-                                <Icon className="h-3.5 w-3.5" /> {label}
+                                <Icon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{label}</span>
                             </button>
                         ))}
                     </div>
                     {/* Search */}
-                    <div className="relative">
-                        <div className="relative w-44">
+                    <div className="relative flex-shrink-0">
+                        <div className="relative w-36 sm:w-44">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                             <Input placeholder="Tìm kiếm..." value={searchQuery}
                                 onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); }}
@@ -823,10 +762,10 @@ export default function TreeViewPage() {
                         )}
                     </div>
                     {/* Controls */}
-                    <div className="flex gap-0.5">
-                        <Button variant="outline" size="icon" className="h-8 w-8" title="Thu gọn tất cả" onClick={collapseAll}><ChevronsDownUp className="h-3.5 w-3.5" /></Button>
-                        <Button variant="outline" size="icon" className="h-8 w-8" title="Mở rộng tất cả" onClick={expandAll}><ChevronsUpDown className="h-3.5 w-3.5" /></Button>
-                        <div className="w-px bg-border mx-0.5" />
+                    <div className="flex gap-0.5 flex-shrink-0">
+                        <Button variant="outline" size="icon" className="h-8 w-8 hidden sm:flex" title="Thu gọn tất cả" onClick={collapseAll}><ChevronsDownUp className="h-3.5 w-3.5" /></Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8 hidden sm:flex" title="Mở rộng tất cả" onClick={expandAll}><ChevronsUpDown className="h-3.5 w-3.5" /></Button>
+                        <div className="w-px bg-border mx-0.5 hidden sm:block" />
                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setTransform(t => {
                             const vw = viewportRef.current?.clientWidth ?? 0; const vh = viewportRef.current?.clientHeight ?? 0;
                             const cx = vw / 2; const cy = vh / 2;
@@ -857,7 +796,7 @@ export default function TreeViewPage() {
             </div>
 
             {/* Tree viewport + Editor panel row */}
-            <div className="flex-1 flex gap-0 min-h-0">
+            <div className="flex-1 flex gap-0 min-h-0 relative">
                 <div ref={viewportRef}
                     className="flex-1 relative overflow-hidden rounded-xl border-2 bg-gradient-to-br from-background to-muted/30 cursor-grab active:cursor-grabbing select-none"
                     onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
@@ -874,12 +813,10 @@ export default function TreeViewPage() {
                             transformOrigin: '0 0', width: layout.width, height: layout.height,
                             position: 'absolute', top: 0, left: 0,
                         }}>
-                            {/* SVG connections — batched into 2 paths */}
                             <svg className="absolute inset-0 pointer-events-none" width={layout.width} height={layout.height}
                                 style={{ overflow: 'visible' }}>
                                 {parentPaths && <path d={parentPaths} stroke="#94a3b8" strokeWidth={1.5} fill="none" />}
                                 {couplePaths && <path d={couplePaths} stroke="#cbd5e1" strokeWidth={1.5} fill="none" strokeDasharray="4,3" />}
-                                {/* Couple hearts — only visible */}
                                 {visibleCouples.map(c => (
                                     <text key={c.familyHandle}
                                         x={c.midX} y={c.y + CARD_H / 2 + 4}
@@ -887,7 +824,6 @@ export default function TreeViewPage() {
                                 ))}
                             </svg>
 
-                            {/* DOM nodes — only visible (culled) */}
                             {visibleNodes.map(item => (
                                 <MemoPersonCard key={item.node.handle} item={item}
                                     isHighlighted={highlightHandles.has(item.node.handle)}
@@ -904,7 +840,6 @@ export default function TreeViewPage() {
                                 />
                             ))}
 
-                            {/* F4: Branch summary cards for collapsed nodes */}
                             {Array.from(branchSummaries.entries()).map(([handle, summary]) => {
                                 const parentNode = layout.nodes.find(n => n.node.handle === handle);
                                 if (!parentNode) return null;
@@ -919,7 +854,6 @@ export default function TreeViewPage() {
                                 );
                             })}
 
-                            {/* Context menu on card */}
                             {contextMenu && (() => {
                                 const person = treeData?.people.find(p => p.handle === contextMenu.handle);
                                 if (!person) return null;
@@ -942,7 +876,6 @@ export default function TreeViewPage() {
                         </div>
                     )}
 
-                    {/* F2: Generation Row Headers */}
                     {layout && (
                         <GenerationHeaders
                             generationStats={generationStats}
@@ -951,24 +884,21 @@ export default function TreeViewPage() {
                         />
                     )}
 
-                    {/* F3: Stats Overlay Panel */}
                     {treeStats && zoomLevel === 'mini' && !statsHidden && (
                         <StatsOverlay stats={treeStats} onClose={() => setStatsHidden(true)} />
                     )}
 
-                    {/* Zoom + culling indicator */}
                     <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur border rounded px-1.5 py-0.5 text-[10px] text-muted-foreground flex gap-1.5">
                         <span>{Math.round(transform.scale * 100)}%</span>
                         {layout && <span className="opacity-60">·</span>}
                         {layout && <span>{visibleNodes.length}/{layout.nodes.length} nodes</span>}
                     </div>
 
-                    {/* Focus person selector */}
                     {viewMode !== 'full' && treeData && (
                         <div className="absolute bottom-2 right-2 bg-background/90 backdrop-blur border rounded-lg px-2 py-1.5 flex items-center gap-1.5 text-xs">
                             <span className="text-muted-foreground">Gốc:</span>
                             <select value={focusPerson || ''} onChange={e => setFocusPerson(e.target.value)}
-                                className="border rounded px-1.5 py-0.5 text-xs bg-background max-w-[140px]">
+                                className="border rounded px-1.5 py-0.5 text-xs bg-background max-w-[100px] sm:max-w-[140px]">
                                 {treeData.people.map(p => (
                                     <option key={p.handle} value={p.handle}>{p.displayName}</option>
                                 ))}
@@ -976,7 +906,6 @@ export default function TreeViewPage() {
                         </div>
                     )}
 
-                    {/* Link copied toast */}
                     {linkCopied && (
                         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
                             <Copy className="w-3.5 h-3.5" /> Đã sao chép link!
@@ -1035,6 +964,65 @@ export default function TreeViewPage() {
                             });
                             supaUpdatePerson(handle, fields);
                         }}
+                        onAssignParent={async (childHandle, parentHandle) => {
+                            const { supabase } = await import('@/lib/supabase');
+                            const newParent = treeData?.people.find(p => p.handle === parentHandle);
+                            if(!newParent || !treeData) return;
+                            const isMale = newParent.gender === 1;
+
+                            // Tìm gia đình đích hoặc tạo mới
+                            let targetFamily = treeData.families.find(f =>
+                                (isMale ? f.fatherHandle === parentHandle : f.motherHandle === parentHandle)
+                            );
+                            const oldFamily = treeData.families.find(f => f.children.includes(childHandle));
+                            if (oldFamily && targetFamily && oldFamily.handle === targetFamily.handle) return; 
+
+                            try {
+                                if (targetFamily) {
+                                    const newChildren = [...targetFamily.children, childHandle];
+                                    await supabase.from('families').update({ children: newChildren }).eq('handle', targetFamily.handle);
+                                    if (oldFamily) {
+                                        await supabase.from('families').update({ children: oldFamily.children.filter(c => c !== childHandle) }).eq('handle', oldFamily.handle);
+                                    }
+                                } else {
+                                    const newFamilyHandle = 'F' + Date.now();
+                                    targetFamily = {
+                                        handle: newFamilyHandle,
+                                        fatherHandle: isMale ? parentHandle : undefined,
+                                        motherHandle: !isMale ? parentHandle : undefined,
+                                        children: [childHandle],
+                                    } as any;
+                                    await supabase.from('families').insert([{
+                                        handle: targetFamily.handle,
+                                        father_handle: targetFamily.fatherHandle || null,
+                                        mother_handle: targetFamily.motherHandle || null,
+                                        children: targetFamily.children
+                                    }]);
+                                    if (oldFamily) {
+                                        await supabase.from('families').update({ children: oldFamily.children.filter(c => c !== childHandle) }).eq('handle', oldFamily.handle);
+                                    }
+                                }
+                                // Cập nhật state
+                                setTreeData(prev => {
+                                    if (!prev) return null;
+                                    let nextFamilies = prev.families.map(f => {
+                                        if (oldFamily && f.handle === oldFamily.handle) {
+                                            return { ...f, children: f.children.filter(c => c !== childHandle) };
+                                        }
+                                        if (targetFamily && f.handle === targetFamily.handle) {
+                                            return { ...f, children: [...new Set([...f.children, childHandle])] };
+                                        }
+                                        return f;
+                                    });
+                                    if (!prev.families.some(f => f.handle === targetFamily!.handle)) {
+                                        nextFamilies.push(targetFamily as any);
+                                    }
+                                    return { ...prev, families: nextFamilies };
+                                });
+                            } catch (err: any) {
+                                alert("Lỗi cập nhật CSDL: " + err.message);
+                            }
+                        }}
                         onReset={async () => {
                             const data = await fetchTreeData();
                             setTreeData(data);
@@ -1051,9 +1039,9 @@ export default function TreeViewPage() {
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-dashed border-slate-300" /> Ngoại tộc</span>
                 <span className="flex items-center gap-1"><span className="text-red-500">❤</span> Vợ chồng</span>
                 <span className="flex items-center gap-1 opacity-60"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-400" /> Đã mất</span>
-                <span className="ml-auto opacity-50">Cuộn để zoom • Kéo để di chuyển • Nhấn để xem</span>
+                <span className="ml-auto opacity-50 hidden sm:inline">Cuộn để zoom • Kéo để di chuyển • Nhấn để xem</span>
             </div>
-            {/* Contribute dialog */}
+            
             {contributePerson && (
                 <ContributeDialog
                     personHandle={contributePerson.handle}
@@ -1065,7 +1053,6 @@ export default function TreeViewPage() {
     );
 }
 
-// === Card Context Menu ===
 function CardContextMenu({ person, x, y, onViewDetail, onShowDescendants, onShowAncestors, onSetFocus, onShowFull, onCopyLink, onContribute, onClose }: {
     person: TreeNode;
     x: number;
@@ -1087,7 +1074,6 @@ function CardContextMenu({ person, x, y, onViewDetail, onShowDescendants, onShow
         >
             <div className="bg-white/95 backdrop-blur-lg border border-slate-200 rounded-xl shadow-xl
                 py-1.5 min-w-[200px] overflow-hidden">
-                {/* Header */}
                 <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
@@ -1102,8 +1088,6 @@ function CardContextMenu({ person, x, y, onViewDetail, onShowDescendants, onShow
                         <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
-
-                {/* Actions */}
                 <div className="py-1">
                     <MenuAction icon={<User className="w-4 h-4" />} label="Xem chi tiết" desc="Mở trang cá nhân" onClick={onViewDetail} />
                     <MenuAction icon={<ArrowDownToLine className="w-4 h-4" />} label="Hậu duệ từ đây" desc="Hiển thị cây con cháu" onClick={onShowDescendants} />
@@ -1136,7 +1120,6 @@ function MenuAction({ icon, label, desc, onClick }: { icon: React.ReactNode; lab
     );
 }
 
-// === Person Card Component (memoized) ===
 const MemoPersonCard = memo(PersonCard, (prev, next) =>
     prev.item === next.item &&
     prev.isHighlighted === next.isHighlighted &&
@@ -1168,10 +1151,8 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
     const isDead = !node.isLiving;
     const isPatri = node.isPatrilineal;
 
-    // ── Color system ──
     const dotColor = !isPatri ? '#94a3b8' : isMale ? '#818cf8' : isFemale ? '#f472b6' : '#94a3b8';
 
-    // F1: MINI zoom → just a colored dot with tooltip
     if (zoomLevel === 'mini') {
         return (
             <div
@@ -1182,7 +1163,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
                 onClick={(e) => { e.stopPropagation(); onClick(node.handle, x + CARD_W, y + CARD_H / 2); }}
             >
                 <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: dotColor }} />
-                {/* Tooltip on hover */}
                 <div className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 z-50
                     bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
                     {node.displayName} · Đời {item.generation + 1}
@@ -1191,7 +1171,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
         );
     }
 
-    // Extract initials
     const nameParts = node.displayName.split(' ');
     const initials = nameParts.length >= 2
         ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
@@ -1222,7 +1201,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
             : isFocused ? 'ring-2 ring-indigo-400 ring-offset-2'
                 : isHovered ? 'ring-1 ring-indigo-200' : '';
 
-    // F1: COMPACT zoom → smaller card with just name + gen
     if (zoomLevel === 'compact') {
         return (
             <div
@@ -1244,7 +1222,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
                         <span className="text-[8px] font-semibold px-0.5 py-px rounded bg-amber-100 text-amber-700">Đời {item.generation + 1}</span>
                     </div>
                 </div>
-                {/* Collapse toggle */}
                 {showCollapseToggle && (
                     <button
                         className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-10 w-5 h-5 rounded-full
@@ -1259,7 +1236,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
         );
     }
 
-    // F1: FULL zoom → original detailed card
     return (
         <div
             className={`absolute rounded-xl border-[1.5px] bg-gradient-to-br shadow-sm transition-all duration-200
@@ -1272,7 +1248,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
             onContextMenu={(e) => { e.preventDefault(); onSetFocus(node.handle); }}
         >
             <div className="px-2.5 py-2 h-full flex items-center gap-2.5">
-                {/* Avatar */}
                 <div className="relative flex-shrink-0">
                     <div className={`w-11 h-11 rounded-full flex items-center justify-center
                         font-bold text-sm shadow-sm ring-1 ring-black/5 ${avatarBg} ${isDead ? 'opacity-60' : ''}`}>
@@ -1284,7 +1259,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
                     )}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                     <p className="font-semibold text-[11px] leading-tight text-slate-800 truncate">
                         {node.displayName}
@@ -1308,7 +1282,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
                 </div>
             </div>
 
-            {/* F4: Collapse toggle button */}
             {showCollapseToggle && (
                 <button
                     className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-10 w-6 h-6 rounded-full
@@ -1324,7 +1297,6 @@ function PersonCard({ item, isHighlighted, isFocused, isHovered, isSelected, zoo
     );
 }
 
-// === F4: Branch Summary Card ===
 function BranchSummaryCard({ summary, parentNode, zoomLevel, onExpand }: {
     summary: BranchSummary;
     parentNode: PositionedNode;
@@ -1332,7 +1304,7 @@ function BranchSummaryCard({ summary, parentNode, zoomLevel, onExpand }: {
     onExpand: () => void;
 }) {
     const x = parentNode.x;
-    const y = parentNode.y + CARD_H + 40; // Position below parent with spacing
+    const y = parentNode.y + CARD_H + 40; 
 
     if (zoomLevel === 'mini') {
         return (
@@ -1382,13 +1354,12 @@ function BranchSummaryCard({ summary, parentNode, zoomLevel, onExpand }: {
     );
 }
 
-// === F2: Generation Row Headers ===
 function GenerationHeaders({ generationStats, transform, cardH }: {
     generationStats: Map<number, number>;
     transform: { x: number; y: number; scale: number };
     cardH: number;
 }) {
-    const V_SPACE = 80; // Must match tree-layout.ts V_SPACE
+    const V_SPACE = 80; 
     const entries = Array.from(generationStats.entries()).sort((a, b) => a[0] - b[0]);
     if (entries.length === 0) return null;
 
@@ -1397,7 +1368,6 @@ function GenerationHeaders({ generationStats, transform, cardH }: {
             {entries.map(([gen, count]) => {
                 const rowY = (gen - 1) * (cardH + V_SPACE);
                 const screenY = rowY * transform.scale + transform.y;
-                // Only render if in viewport
                 if (screenY < -60 || screenY > 2000) return null;
                 return (
                     <div
@@ -1419,14 +1389,12 @@ function GenerationHeaders({ generationStats, transform, cardH }: {
     );
 }
 
-// === F3: Stats Overlay Panel ===
 function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => void }) {
     const maxCount = Math.max(...stats.perGeneration.map(g => g.count));
 
     return (
         <div className="absolute top-3 right-3 w-64 bg-white/95 backdrop-blur-lg border border-slate-200
             rounded-xl shadow-xl animate-in slide-in-from-right-5 fade-in duration-300 z-40 pointer-events-auto">
-            {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
                 <div className="flex items-center gap-1.5">
                     <BarChart3 className="w-4 h-4 text-indigo-500" />
@@ -1438,7 +1406,6 @@ function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => voi
             </div>
 
             <div className="p-3 space-y-3">
-                {/* Summary numbers */}
                 <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
                         <p className="text-lg font-bold text-slate-800">{stats.total}</p>
@@ -1454,7 +1421,6 @@ function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => voi
                     </div>
                 </div>
 
-                {/* Generation distribution */}
                 <div>
                     <p className="text-[10px] font-semibold text-slate-600 mb-1.5">Phân bố theo đời</p>
                     <div className="space-y-1">
@@ -1473,7 +1439,6 @@ function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => voi
                     </div>
                 </div>
 
-                {/* Status breakdown */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] pt-1 border-t border-slate-100">
                     <div className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -1501,8 +1466,7 @@ function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => voi
     );
 }
 
-// === Editor Panel Component ===
-function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, onRemoveChild, onToggleLiving, onUpdatePerson, onReset, onClose }: {
+function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, onRemoveChild, onToggleLiving, onUpdatePerson, onAssignParent, onReset, onClose }: {
     selectedCard: string | null;
     treeData: { people: TreeNode[]; families: TreeFamily[] } | null;
     onReorderChildren: (familyHandle: string, newOrder: string[]) => void;
@@ -1510,6 +1474,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     onRemoveChild: (childHandle: string, familyHandle: string) => void;
     onToggleLiving: (handle: string, isLiving: boolean) => void;
     onUpdatePerson: (handle: string, fields: Record<string, unknown>) => void;
+    onAssignParent: (childHandle: string, parentHandle: string) => void;
     onReset: () => void;
     onClose: () => void;
 }) {
@@ -1526,7 +1491,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
 
     const person = selectedCard ? treeData.people.find(p => p.handle === selectedCard) : null;
 
-    // Sync local state when selection changes
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useEffect(() => {
         if (person) {
@@ -1539,7 +1503,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         }
     }, [person?.handle]);
 
-    // Close parent dropdown on outside click
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -1551,42 +1514,29 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Find the family where this person is a parent
     const parentFamily = person
         ? treeData.families.find(f => f.fatherHandle === person.handle || f.motherHandle === person.handle)
         : null;
 
-    // Find the family where this person is a child
     const childOfFamily = person
         ? treeData.families.find(f => f.children.includes(person.handle))
         : null;
 
-    // Get parent person name
     const parentPerson = childOfFamily
         ? treeData.people.find(p => p.handle === childOfFamily.fatherHandle || p.handle === childOfFamily.motherHandle)
         : null;
 
-    // Children of the selected person's family
     const children = parentFamily
         ? parentFamily.children.map(ch => treeData.people.find(p => p.handle === ch)).filter(Boolean) as TreeNode[]
         : [];
 
-    // All families (for "change parent" dropdown) with labels
-    const allParentFamilies = treeData.families.filter(f => f.fatherHandle || f.motherHandle);
-    const parentFamiliesWithLabels = allParentFamilies.map(f => {
-        const father = treeData.people.find(p => p.handle === f.fatherHandle);
-        const gen = father ? (father as any).generation : '';
-        const label = father ? father.displayName : f.handle;
-        return { ...f, label, gen };
-    });
-
-    // Filter parent families by search term
-    const filteredParentFamilies = parentSearch.trim()
-        ? parentFamiliesWithLabels.filter(f =>
-            f.label.toLowerCase().includes(parentSearch.toLowerCase()) ||
-            f.handle.toLowerCase().includes(parentSearch.toLowerCase())
+    const allPotentialParents = treeData.people.filter(p => p.handle !== person?.handle);
+    const filteredParents = parentSearch.trim()
+        ? allPotentialParents.filter(p =>
+            p.displayName.toLowerCase().includes(parentSearch.toLowerCase()) ||
+            p.handle.toLowerCase().includes(parentSearch.toLowerCase())
         )
-        : parentFamiliesWithLabels;
+        : allPotentialParents.slice(0, 50);
 
     const handleSave = async () => {
         if (!person || !dirty) return;
@@ -1605,8 +1555,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     };
 
     return (
-        <div className="w-72 bg-background border-l flex flex-col overflow-hidden flex-shrink-0">
-            {/* Header */}
+        <div className="absolute right-0 top-0 bottom-0 w-72 bg-background border-l flex flex-col overflow-hidden sm:relative z-20 shadow-2xl sm:shadow-none transition-transform">
             <div className="flex items-center justify-between px-3 py-2 border-b bg-blue-50">
                 <div className="flex items-center gap-2">
                     <Pencil className="h-4 w-4 text-blue-600" />
@@ -1630,23 +1579,15 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto">
-                    {/* Editable person info */}
                     <div className="p-3 border-b space-y-2">
                         <p className="text-xs text-muted-foreground">Đời {(person as any).generation ?? '?'} · {person.handle}</p>
-                        {parentPerson && (
-                            <p className="text-xs text-muted-foreground">
-                                Cha: <span className="font-medium text-foreground">{parentPerson.displayName}</span>
-                            </p>
-                        )}
-
-                        {/* Editable Name */}
+                        
                         <div>
                             <label className="text-xs text-muted-foreground">Họ tên</label>
                             <input className="w-full border rounded px-2 py-1 text-sm bg-background" value={editName}
                                 onChange={e => { setEditName(e.target.value); setDirty(true); }} />
                         </div>
 
-                        {/* Birth / Death Year */}
                         <div className="flex gap-2">
                             <div className="flex-1">
                                 <label className="text-xs text-muted-foreground">Năm sinh</label>
@@ -1660,7 +1601,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             </div>
                         </div>
 
-                        {/* Living status */}
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">Trạng thái:</span>
                             <button
@@ -1674,7 +1614,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             </button>
                         </div>
 
-                        {/* Save button */}
                         {dirty && (
                             <button
                                 className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
@@ -1685,7 +1624,6 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                         )}
                     </div>
 
-                    {/* Children reorder */}
                     {parentFamily && children.length > 0 && (
                         <div className="p-3 border-b">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -1741,59 +1679,53 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                         </div>
                     )}
 
-                    {/* Change parent — searchable */}
-                    {childOfFamily && (
-                        <div className="p-3 border-b" ref={parentSearchRef}>
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                                Đổi cha
-                            </p>
-                            {/* Current parent display */}
-                            <p className="text-xs text-muted-foreground mb-1">
-                                Hiện tại: <span className="font-medium text-foreground">{parentPerson?.displayName ?? childOfFamily.handle}</span>
-                            </p>
-                            {/* Searchable input */}
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full border rounded px-2 py-1 text-xs bg-background placeholder:text-muted-foreground/60"
-                                    placeholder="🔍 Tìm cha mới..."
-                                    value={parentSearch}
-                                    onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
-                                    onFocus={() => setShowParentDropdown(true)}
-                                />
-                                {showParentDropdown && (
-                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
-                                        {filteredParentFamilies.length === 0 ? (
-                                            <div className="px-2 py-2 text-xs text-muted-foreground text-center">
-                                                Không tìm thấy
-                                            </div>
-                                        ) : (
-                                            filteredParentFamilies.map(f => {
-                                                const isSelected = f.handle === childOfFamily.handle;
-                                                return (
-                                                    <button
-                                                        key={f.handle}
-                                                        className={`w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-1 transition-colors ${isSelected ? 'bg-blue-100 font-semibold text-blue-700' : ''}`}
-                                                        onClick={() => {
-                                                            if (f.handle !== childOfFamily.handle) {
-                                                                onMoveChild(person.handle, childOfFamily.handle, f.handle);
-                                                            }
-                                                            setShowParentDropdown(false);
-                                                            setParentSearch('');
-                                                        }}
-                                                    >
-                                                        <span className="truncate flex-1">{f.label}</span>
-                                                        <span className="text-muted-foreground/60 shrink-0">Đ{f.gen}</span>
-                                                        {isSelected && <span className="text-blue-600 shrink-0">✓</span>}
-                                                    </button>
-                                                );
-                                            })
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                    <div className="p-3 border-b" ref={parentSearchRef}>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                            {childOfFamily ? 'Đổi cha mẹ' : 'Gắn cha mẹ'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                            Hiện tại: <span className="font-medium text-foreground">{parentPerson?.displayName || 'Chưa có (Bơ vơ)'}</span>
+                        </p>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                className="w-full border rounded px-2 py-1 text-xs bg-background placeholder:text-muted-foreground/60"
+                                placeholder="🔍 Tìm tên người để gắn làm cha/mẹ..."
+                                value={parentSearch}
+                                onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
+                                onFocus={() => setShowParentDropdown(true)}
+                            />
+                            {showParentDropdown && (
+                                <div className="absolute z-50 bottom-full left-0 right-0 mb-1 bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
+                                    {filteredParents.length === 0 ? (
+                                        <div className="px-2 py-2 text-xs text-muted-foreground text-center">
+                                            Không tìm thấy
+                                        </div>
+                                    ) : (
+                                        filteredParents.map(p => {
+                                            const isSelected = p.handle === parentPerson?.handle;
+                                            return (
+                                                <button
+                                                    key={p.handle}
+                                                    className={`w-full text-left px-2 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-1 transition-colors ${isSelected ? 'bg-blue-100 font-semibold text-blue-700' : ''}`}
+                                                    onClick={() => {
+                                                        if (p.handle !== parentPerson?.handle) {
+                                                            onAssignParent(person.handle, p.handle);
+                                                        }
+                                                        setShowParentDropdown(false);
+                                                        setParentSearch('');
+                                                    }}
+                                                >
+                                                    <span className="truncate flex-1">{p.displayName}</span>
+                                                    {isSelected && <span className="text-blue-600 shrink-0">✓</span>}
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
         </div>
